@@ -35,6 +35,7 @@ jobs:
         run: |
           cargo tauri icon assets/cflex-native-icon.svg
           cargo tauri android init --ci
+          bash scripts/prepare-android-camera.sh
       - name: Build Android test APK
         working-directory: native
         run: cargo tauri android build --debug --apk
