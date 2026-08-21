@@ -1,5 +1,10 @@
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 
+#[cfg(target_os = "android")]
+const STORE_MANAGER_URL: &str =
+    "https://cflex-store-manager.swigglesmac9.chatgpt.site/?cflex_native=android";
+
+#[cfg(not(target_os = "android"))]
 const STORE_MANAGER_URL: &str = "https://cflex-store-manager.swigglesmac9.chatgpt.site";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
