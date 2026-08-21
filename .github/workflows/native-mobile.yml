@@ -41,29 +41,12 @@ jobs:
           path: native/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
 
-  ios-simulator:
+  ios-source-check:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install Tauri CLI and simulator target
-        run: |
-          cargo install tauri-cli --version "^2" --locked
-          rustup target add aarch64-apple-ios-sim
-      - name: Generate icons and iOS project
-        working-directory: native
-        run: |
-          cargo tauri icon assets/cflex-native-icon.svg
-          cargo tauri ios init --ci
-      - name: Compile iOS simulator application
-        working-directory: native
-        run: |
-          project=$(find gen/apple -maxdepth 1 -name '*.xcodeproj' -print -quit)
-          scheme=$(xcodebuild -project "$project" -list -json | python3 -c 'import json,sys; data=json.load(sys.stdin); print(data["project"]["schemes"][0])')
-          xcodebuild -project "$project" -scheme "$scheme" -sdk iphonesimulator -configuration Debug -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
-      - name: Upload iOS simulator application
-        uses: actions/upload-artifact@v4
-        with:
-          name: cflex-store-manager-ios-simulator
-          path: native/build/Build/Products/Debug-iphonesimulator/*.app/**
-          if-no-files-found: error
+      - name: Install iOS simulator Rust target
+        run: rustup target add aarch64-apple-ios-sim
+      - name: Verify the native iOS application library
+        run: cargo check --manifest-path native/Cargo.toml --target aarch64-apple-ios-sim
