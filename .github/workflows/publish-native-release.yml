@@ -78,11 +78,11 @@ jobs:
           rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
           cargo tauri icon assets/cflex-native-icon.svg
           cargo tauri android init --ci
-          cargo tauri android build --debug --apk
+          cargo tauri android build --debug --apk --target aarch64
       - name: Prepare Android download
         run: |
           mkdir -p release-assets
-          cp "$(find native/gen/android/app/build/outputs/apk -type f -name '*.apk' | head -n 1)" release-assets/C-Flex-Store-Manager-Android-universal.apk
+          cp "$(find native/gen/android/app/build/outputs/apk -type f -name '*.apk' | head -n 1)" release-assets/C-Flex-Store-Manager-Android-arm64-v8a.apk
       - uses: actions/upload-artifact@v4
         with:
           name: public-android
