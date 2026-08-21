@@ -1,0 +1,66 @@
+name: Build native mobile packages
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "native/**"
+      - ".github/workflows/native-mobile.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install Linux and Android build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install Tauri CLI and Android Rust targets
+        run: |
+          cargo install tauri-cli --version "^2" --locked
+          rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+      - name: Generate icons and Android project
+        working-directory: native
+        run: |
+          cargo tauri icon assets/cflex-native-icon.svg
+          cargo tauri android init --ci
+      - name: Build Android test APK
+        working-directory: native
+        run: cargo tauri android build --debug --apk
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: cflex-store-manager-android-apk
+          path: native/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+  ios-simulator:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Tauri CLI and simulator target
+        run: |
+          cargo install tauri-cli --version "^2" --locked
+          rustup target add aarch64-apple-ios-sim
+      - name: Generate icons and iOS project
+        working-directory: native
+        run: |
+          cargo tauri icon assets/cflex-native-icon.svg
+          cargo tauri ios init --ci
+      - name: Compile iOS simulator application
+        working-directory: native
+        run: cargo tauri ios build --debug --target aarch64-sim
+      - name: Upload iOS simulator application
+        uses: actions/upload-artifact@v4
+        with:
+          name: cflex-store-manager-ios-simulator
+          path: native/gen/apple/build/**/*.app/**
+          if-no-files-found: error
