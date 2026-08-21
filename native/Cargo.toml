@@ -1,0 +1,28 @@
+[package]
+name = "cflex-store-manager"
+version = "1.0.0"
+description = "Native desktop and mobile shell for C.Flex Store Manager"
+authors = ["C.Flex"]
+edition = "2021"
+
+[lib]
+name = "cflex_store_manager_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+# Public Android previews use debug signing until the production Play signing
+# key is available. Strip Rust debug symbols so the installable APK stays small.
+[profile.dev]
+debug = 0
+strip = "symbols"
+incremental = false
+opt-level = 1

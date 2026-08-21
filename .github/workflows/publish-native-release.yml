@@ -1,0 +1,121 @@
+name: Publish public native installers
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [native-installers-v1]
+    paths:
+      - ".github/workflows/publish-native-release.yml"
+      - "native/src/**"
+      - "native/Cargo.toml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cflex-native-public-release
+  cancel-in-progress: false
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, platform: linux}
+          - {os: windows-latest, platform: windows}
+          - {os: macos-latest, platform: macos}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux system libraries
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+      - name: Build native package
+        working-directory: native
+        run: |
+          cargo tauri icon assets/cflex-native-icon.svg
+          cargo tauri build
+      - name: Prepare Linux downloads
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp "$(find native/target/release/bundle -type f -name '*.deb' | head -n 1)" release-assets/C-Flex-Store-Manager-Linux-amd64.deb
+          cp "$(find native/target/release/bundle -type f -name '*.AppImage' | head -n 1)" release-assets/C-Flex-Store-Manager-Linux-amd64.AppImage
+      - name: Prepare Windows downloads
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force release-assets
+          Copy-Item (Get-ChildItem native/target/release/bundle -Recurse -Filter *.msi | Select-Object -First 1).FullName release-assets/C-Flex-Store-Manager-Windows-x64.msi
+          Copy-Item (Get-ChildItem native/target/release/bundle -Recurse -Filter *.exe | Select-Object -First 1).FullName release-assets/C-Flex-Store-Manager-Windows-x64.exe
+      - name: Prepare macOS download
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp "$(find native/target/release/bundle -type f -name '*.dmg' | head -n 1)" release-assets/C-Flex-Store-Manager-macOS-arm64.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-${{ matrix.platform }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: "17"}
+      - name: Install build prerequisites
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Build Android APK
+        working-directory: native
+        run: |
+          cargo install tauri-cli --version "^2" --locked
+          rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+          cargo tauri icon assets/cflex-native-icon.svg
+          cargo tauri android init --ci
+          bash scripts/prepare-android-camera.sh
+          cargo tauri android build --debug --apk --target aarch64
+      - name: Prepare Android download
+        run: |
+          mkdir -p release-assets
+          cp "$(find native/gen/android/app/build/outputs/apk -type f -name '*.apk' | head -n 1)" release-assets/C-Flex-Store-Manager-Android-arm64-v8a.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-android
+          path: release-assets/*
+          if-no-files-found: error
+
+  release:
+    needs: [desktop, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: public-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create checksums
+        working-directory: release-assets
+        run: sha256sum * > SHA256SUMS.txt
+      - name: Publish public preview release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: native-v1.0.0-preview
+          target_commitish: native-installers-v1
+          name: C.Flex Store Manager Native Apps v1.0.0 Preview
+          prerelease: true
+          make_latest: true
+          fail_on_unmatched_files: true
+          body: |
+            Public preview installers for C.Flex Store Manager.
+
+            Windows and macOS are not yet commercially code-signed. Android is a test APK. Install only on trusted C.Flex devices while store signing is completed.
+          files: release-assets/*
