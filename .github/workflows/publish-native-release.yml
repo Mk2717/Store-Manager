@@ -81,6 +81,7 @@ jobs:
           rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
           cargo tauri icon assets/cflex-native-icon.svg
           cargo tauri android init --ci
+          bash scripts/prepare-android-camera.sh
           cargo tauri android build --debug --apk --target aarch64
       - name: Prepare Android download
         run: |
